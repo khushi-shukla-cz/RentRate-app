@@ -1,0 +1,8 @@
+# Backend secrets and dependencies
+backend/.env
+backend/node_modules/
+
+# Flutter local/generated metadata and logs
+frontend/.metadata
+frontend/flutter_run_log.txt
+frontend/flutter_run_verbose_log.txt
