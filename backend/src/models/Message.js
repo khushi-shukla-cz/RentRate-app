@@ -9,4 +9,7 @@ const messageSchema = new mongoose.Schema({
   messageType: { type: String, enum: ['inquiry', 'message'], default: 'message' },
 }, { timestamps: true });
 
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
+messageSchema.index({ receiverId: 1, isRead: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Message', messageSchema);

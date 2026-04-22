@@ -8,6 +8,16 @@ import '../config/app_config.dart';
 class ApiService {
   static const Duration _requestTimeout = Duration(seconds: 8);
 
+  static Map<String, dynamic>? _validateApiBaseUrl() {
+    if (!AppConstants.hasConfiguredApiBaseUrl) {
+      return {
+        'success': false,
+        'message': AppConstants.missingApiBaseUrlMessage,
+      };
+    }
+    return null;
+  }
+
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(AppConstants.tokenKey);
@@ -23,6 +33,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> get(String path, {bool auth = true, Map<String, String>? queryParams}) async {
+    final validation = _validateApiBaseUrl();
+    if (validation != null) return validation;
+
     try {
       var uri = Uri.parse('${AppConstants.baseUrl}$path');
       if (queryParams != null) uri = uri.replace(queryParameters: queryParams);
@@ -45,6 +58,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body, {bool auth = true}) async {
+    final validation = _validateApiBaseUrl();
+    if (validation != null) return validation;
+
     try {
       final headers = await getHeaders(auth: auth);
       final response = await http.post(
@@ -69,6 +85,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body, {bool auth = true}) async {
+    final validation = _validateApiBaseUrl();
+    if (validation != null) return validation;
+
     try {
       final headers = await getHeaders(auth: auth);
       final response = await http.put(
@@ -93,6 +112,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> delete(String path, {bool auth = true}) async {
+    final validation = _validateApiBaseUrl();
+    if (validation != null) return validation;
+
     try {
       final headers = await getHeaders(auth: auth);
       final response = await http.delete(

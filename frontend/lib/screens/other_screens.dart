@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:provider/provider.dart';
@@ -200,12 +201,24 @@ class MessageThreadScreen extends StatefulWidget {
 class _MessageThreadScreenState extends State<MessageThreadScreen> {
   final _ctrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  Timer? _pollTimer;
+  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MessageProvider>().fetchThread(widget.partnerId);
+      context.read<MessageProvider>().fetchConversations();
+      _startPolling();
+    });
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      context.read<MessageProvider>().fetchThread(widget.partnerId, silent: true);
     });
   }
 
@@ -220,19 +233,30 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
   }
 
   Future<void> _send() async {
-    if (_ctrl.text.trim().isEmpty) return;
+    if (_isSending || _ctrl.text.trim().isEmpty) return;
     final text = _ctrl.text.trim();
-    _ctrl.clear();
-    await context.read<MessageProvider>().sendMessage(
+    setState(() => _isSending = true);
+    final ok = await context.read<MessageProvider>().sendMessage(
       receiverId: widget.partnerId,
       content: text,
       propertyId: widget.propertyId,
     );
+    if (!mounted) return;
+    setState(() => _isSending = false);
+    if (ok) {
+      _ctrl.clear();
+    } else {
+      final error = context.read<MessageProvider>().error ?? 'Failed to send message';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: AppColors.warning),
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _ctrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -275,22 +299,31 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
           Expanded(
             child: mp.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : mp.thread.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.chat_bubble_outline_rounded,
-                        title: 'No messages yet',
-                        subtitle: 'Start the conversation!',
-                      )
-                    : ListView.builder(
-                        controller: _scrollCtrl,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: mp.thread.length,
-                        itemBuilder: (_, i) {
-                          final msg = mp.thread[i];
-                          final isMine = msg.sender?.id == me?.id;
-                          return _bubble(msg.content, isMine, msg.createdAt);
-                        },
-                      ),
+                : RefreshIndicator(
+                    onRefresh: () => context.read<MessageProvider>().fetchThread(widget.partnerId),
+                    child: mp.thread.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: const [
+                              SizedBox(height: 120),
+                              EmptyState(
+                                icon: Icons.chat_bubble_outline_rounded,
+                                title: 'No messages yet',
+                                subtitle: 'Start the conversation!',
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            controller: _scrollCtrl,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: mp.thread.length,
+                            itemBuilder: (_, i) {
+                              final msg = mp.thread[i];
+                              final isMine = msg.sender?.id == me?.id;
+                              return _bubble(msg.content, isMine, msg.createdAt, msg.isRead, msg.messageType);
+                            },
+                          ),
+                  ),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
@@ -312,11 +345,20 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: _send,
+                  onTap: _isSending ? null : _send,
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    decoration: BoxDecoration(
+                      color: _isSending ? AppColors.textBody : AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
                   ),
                 ),
               ],
@@ -327,7 +369,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
     );
   }
 
-  Widget _bubble(String text, bool isMine, DateTime? time) => Padding(
+  Widget _bubble(String text, bool isMine, DateTime? time, bool isRead, String type) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -348,7 +390,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
               border: isMine ? null : Border.all(color: AppColors.border),
             ),
             child: Text(
-              text,
+              type == 'inquiry' ? 'Inquiry: $text' : text,
               style: TextStyle(
                 color: isMine ? Colors.white : AppColors.textDark,
                 fontSize: 14,
@@ -358,9 +400,22 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
           ),
           if (time != null) ...[
             const SizedBox(height: 3),
-            Text(
-              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-              style: const TextStyle(fontSize: 10, color: AppColors.textBody),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 10, color: AppColors.textBody),
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                    size: 12,
+                    color: isRead ? AppColors.trustHigh : AppColors.textBody,
+                  ),
+                ],
+              ],
             ),
           ],
         ],

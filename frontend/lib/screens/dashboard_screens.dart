@@ -610,6 +610,8 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
+  final _searchCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -619,42 +621,110 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final mp = context.watch<MessageProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
-      body: mp.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : mp.conversations.isEmpty
-              ? const EmptyState(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  title: 'No conversations yet',
-                  subtitle: 'Contact a property owner to start a conversation',
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: mp.conversations.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final c = mp.conversations[i];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      leading: UserAvatar(user: c.partner, radius: 24),
-                      title: Text(c.partner.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text(c.lastMessage.content, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
-                      trailing: c.unread > 0
-                          ? Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                              child: Text('${c.unread}', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                            )
-                          : null,
-                      onTap: () => Navigator.pushNamed(context, '/messages/${c.partner.id}',
-                          arguments: {'name': c.partner.name, 'partner': c.partner}),
-                    );
-                  },
+      appBar: AppBar(
+        title: const Text('Messages'),
+        actions: [
+          if (mp.unreadCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(999),
                 ),
+                child: Text(
+                  '${mp.unreadCount} unread',
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (value) => context.read<MessageProvider>().fetchConversations(query: value),
+              decoration: const InputDecoration(
+                hintText: 'Search by name...',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+          ),
+          if (mp.error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.25)),
+                ),
+                child: Text(
+                  mp.error!,
+                  style: const TextStyle(color: AppColors.warning, fontSize: 12),
+                ),
+              ),
+            ),
+          Expanded(
+            child: mp.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : mp.conversations.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        title: 'No conversations yet',
+                        subtitle: 'Contact a property owner to start a conversation',
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () => context.read<MessageProvider>().fetchConversations(query: _searchCtrl.text),
+                        child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(16),
+                          itemCount: mp.conversations.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final c = mp.conversations[i];
+                            final prefix = c.lastMessage.messageType == 'inquiry' ? '[Inquiry] ' : '';
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                              leading: UserAvatar(user: c.partner, radius: 24),
+                              title: Text(c.partner.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              subtitle: Text(
+                                '$prefix${c.lastMessage.content}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: AppColors.textBody),
+                              ),
+                              trailing: c.unread > 0
+                                  ? Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                                      child: Text('${c.unread}', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                                    )
+                                  : null,
+                              onTap: () => Navigator.pushNamed(context, '/messages/${c.partner.id}',
+                                  arguments: {'name': c.partner.name, 'partner': c.partner}),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -309,14 +309,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               onPressed: () async {
                 Navigator.pop(context);
                 final mp = context.read<MessageProvider>();
-                await mp.sendMessage(
+                final ok = await mp.sendMessage(
                   receiverId: ownerId,
                   content: ctrl.text,
                   propertyId: propertyId,
                   messageType: 'inquiry',
                 );
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Inquiry sent!'), backgroundColor: AppColors.trustHigh),
+                  SnackBar(
+                    content: Text(ok ? 'Inquiry sent!' : (mp.error ?? 'Failed to send inquiry')),
+                    backgroundColor: ok ? AppColors.trustHigh : AppColors.warning,
+                  ),
                 );
               },
             ),

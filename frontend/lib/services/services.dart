@@ -138,11 +138,20 @@ class MessageService {
         'messageType': messageType,
       });
 
-  static Future<Map<String, dynamic>> getConversations() =>
-      ApiService.get('/messages/conversations');
+    static Future<Map<String, dynamic>> getConversations({String? query}) =>
+      ApiService.get(
+      '/messages/conversations',
+      queryParams: query != null && query.trim().isNotEmpty ? {'q': query.trim()} : null,
+      );
 
   static Future<Map<String, dynamic>> getThread(String userId) =>
       ApiService.get('/messages/thread/$userId');
+
+    static Future<Map<String, dynamic>> markThreadRead(String userId) =>
+      ApiService.put('/messages/thread/$userId/read', {});
+
+    static Future<Map<String, dynamic>> getUnreadCount() =>
+      ApiService.get('/messages/unread/count');
 }
 
 // ─── USER SERVICE ──────────────────────────────────────────────────────────────

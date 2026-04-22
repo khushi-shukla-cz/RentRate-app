@@ -50,6 +50,7 @@ npm install
 Edit `.env`:
 ```env
 PORT=5000
+HOST=0.0.0.0
 MONGODB_URI=mongodb://localhost:27017/rentrate
 JWT_SECRET=your_secret_key
 JWT_EXPIRES_IN=7d
@@ -67,7 +68,10 @@ Seed demo data:
 npm run seed
 ```
 
-The API will be live at: `http://localhost:5000`
+The API will be live at: `http://localhost:5000` (same machine)
+
+For real phone testing, use your computer LAN IP from the phone:
+`http://<YOUR_PC_LAN_IP>:5000`
 
 ---
 
@@ -78,7 +82,21 @@ cd rentrate/frontend
 flutter pub get
 ```
 
-**Update the API base URL** in `lib/config/app_config.dart`:
+**For emulator (`flutter run`)** you can use defaults in `lib/config/app_config.dart`.
+
+**For physical phone / release APK**, always pass API URL at build time:
+
+```bash
+flutter build apk --release --dart-define=API_BASE_URL=http://192.168.x.x:5000/api
+```
+
+For debug on phone:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://192.168.x.x:5000/api
+```
+
+Reference URL behavior in `lib/config/app_config.dart`:
 
 ```dart
 // For Android Emulator:
@@ -90,6 +108,11 @@ static const String baseUrl = 'http://10.0.2.2:5000/api';
 // For physical device (use your machine's IP):
 // static const String baseUrl = 'http://192.168.x.x:5000/api';
 ```
+
+Also ensure:
+- Phone and computer are on same Wi-Fi
+- Windows Firewall allows inbound TCP `5000`
+- Backend is running before opening APK
 
 Run the app:
 ```bash

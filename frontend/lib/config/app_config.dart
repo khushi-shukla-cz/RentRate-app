@@ -91,16 +91,25 @@ class AppTheme {
 class AppConstants {
   // Override at runtime when needed:
   // flutter run --dart-define=API_BASE_URL=http://192.168.x.x:5000/api
+  static const String _missingReleaseBaseUrl = '__MISSING_API_BASE_URL__';
+
   static String get baseUrl {
     const overridden = String.fromEnvironment('API_BASE_URL');
     if (overridden.isNotEmpty) return overridden;
 
     if (kIsWeb) return 'http://localhost:5000/api';
     if (defaultTargetPlatform == TargetPlatform.android) {
+      if (kReleaseMode) return _missingReleaseBaseUrl;
       return 'http://10.0.2.2:5000/api'; // Android emulator
     }
     return 'http://localhost:5000/api'; // iOS / desktop
   }
+
+  static bool get hasConfiguredApiBaseUrl => baseUrl != _missingReleaseBaseUrl;
+
+  static String get missingApiBaseUrlMessage =>
+      'Release APK missing API_BASE_URL. Rebuild with '
+      '--dart-define=API_BASE_URL=http://<YOUR_PC_LAN_IP>:5000/api';
   
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
